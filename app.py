@@ -4,6 +4,7 @@ import io
 
 import dash
 from dash.dependencies import Input, Output, State
+from textwrap import dedent as d
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table_experiments as dt
@@ -21,10 +22,18 @@ import os
 
 app = dash.Dash()
 
+app.config['suppress_callback_exceptions']=True
+
 #CSS offline
 app.css.config.serve_locally = True
 app.scripts.config.serve_locally = True
 
+styles = {
+    'pre': {
+        'border': 'thin lightgrey solid',
+        'overflowX': 'scroll'
+    }
+}
 
 app.layout = html.Div([
     dcc.Upload(
@@ -44,63 +53,67 @@ app.layout = html.Div([
                 'margin': '10px'
             },
             # Allow multiple files to be uploaded
-            multiple=False
+            multiple=True
         ),
-        html.Div(id='output-data-upload'),
-        html.Div(dt.DataTable(rows=[{}]), style={'display': 'none'})
+    html.Div(id='output-graph-upload'),
+    # html.Div([
+    #             dcc.Markdown(d("""
+    #                 **Zoom and Relayout Data**
+    #
+    #                 Click and drag on the graph to zoom or click on the zoom
+    #                 buttons in the graph's menu bar.
+    #                 Clicking on legend items will also fire
+    #                 this event.
+    #             """)),
+    #             html.Pre(id='relayout-data', style=styles['pre']),
+    #         ], className='three columns')
 ])
 
-def parse_contents(contents, filename, date):
-    content_type, content_string = contents.split(',')
 
-    decoded = base64.b64decode(content_string)
-    try:
-        if 'csv' in filename:
-            # Assume that the user uploaded a CSV file
-            df = pd.read_csv(
-                io.StringIO(decoded.decode('utf-8')))
-        elif 'xls' in filename:
-            # Assume that the user uploaded an excel file
-            df = pd.read_excel('test.xls', sheet_name='Données brutes', index_col=None, header=None)
-            df.columns = ['Temps', 'Température', 'Dilatation']
-    except Exception as e:
-        print(e)
+
+#Traitement des données du fichier et création du graph général
+def parse_contents(contents, filename, dates):
+    if contents is not None:
+        content_type, content_string = contents.split(',')
+        print(filename)
+        decoded = base64.b64decode(content_string)
+        try:
+            if 'csv' in filename:
+                # Assume that the user uploaded a CSV file
+                df = pd.read_csv(
+                    io.StringIO(decoded.decode('utf-8')))
+            elif 'xls' in filename:
+                # Assume that the user uploaded an excel file
+                df = pd.read_excel(io.BytesIO(decoded), sheet_name='Données brutes', index_col=None, header=None)
+                df.columns = ['Temps', 'Température', 'Dilatation']
+        except Exception as e:
+            print(e)
+            return html.Div([
+                'There was an error processing this file.'
+            ])
+
         return html.Div([
-            'There was an error processing this file.'
+            html.H5(filename),
+            #html.H6(datetime.datetime.fromtimestamp(date)),
+
+            # HTML images accept base64 encoded strings in the same format
+            # that is supplied by the upload
+            html.Hr(),
+
+            dcc.Graph(id='trc_graph', figure={'data': [{'x': df.Température, "y": df.Dilatation, 'type': 'Scatter', 'name': 'Test'}],
+                  'layout': {'title': 'Test Titre'
+                             }}),
+
+            html.Hr(),
+            html.Div('Raw Content'),
+            html.Pre(contents[0:200] + '...', style={
+                'whiteSpace': 'pre-wrap',
+                'wordBreak': 'break-all'
+            })
         ])
 
-    # dcc.Graph(id='graph',
-    #           figure={
-    #               'data': [
-    #                   {'x': df.Température, "y": df.Dilatation, 'type': 'Scatter', 'name': 'Test'}
-    #               ],
-    #               'layout': {
-    #                   'title': 'Test Titre'
-    #               }
-    #           })
-
-    return html.Div([
-        html.H5(filename),
-        #html.H6(datetime.datetime.fromtimestamp(date)),
-
-        # Use the DataTable prototype component:
-        # github.com/plotly/dash-table-experiments
-        dt.DataTable(rows=df.to_dict('records')),
-
-        html.Hr(),  # horizontal line
-
-        # For debugging, display the raw contents provided by the web browser
-        html.Div('Raw Content'),
-        html.Pre(contents[0:200] + '...', style={
-            'whiteSpace': 'pre-wrap',
-            'wordBreak': 'break-all'
-        })
-    ])
-
-
-
-
-@app.callback(Output('output-data-upload', 'children'),
+#Callback de l'upload
+@app.callback(Output('output-graph-upload', 'children'),
               [Input('upload-data', 'contents'),
                Input('upload-data', 'filename'),
                Input('upload-data', 'last_modified')])
@@ -111,10 +124,12 @@ def update_output(list_of_contents, list_of_names, list_of_dates):
             zip(list_of_contents, list_of_names, list_of_dates)]
         return children
 
-
-
-
-
+#TODO : Callback du graph par sélection ou zoom
+# @app.callback(
+#     Output('relayout-data', 'children'),
+#     [Input('trc_graph', 'relayoutData')])
+# def display_selected_data(relayoutData):
+#     return json.dumps(relayoutData, indent=2)
 
 
 if __name__ == '__main__':
