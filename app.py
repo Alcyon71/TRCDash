@@ -22,7 +22,7 @@ import os
 
 app = dash.Dash()
 
-app.config['suppress_callback_exceptions']=True
+#app.config['suppress_callback_exceptions']=True
 
 #CSS offline
 app.css.config.serve_locally = True
