@@ -125,7 +125,8 @@ app.layout = html.Div(children=[
                     )]),
             ]),
     ], style={'columnCount': 2}),
-    html.Div(id='TestClick')
+    html.Div(id='TestClick'),
+    html.Div(id='InputTangente')
 ])
 
 
@@ -194,6 +195,25 @@ def display_click_data(clickData,value):
         html.Pre(json.dumps(clickData, indent=2), style=styles['pre']),
         html.Div([value])
             ])
+
+
+
+#Todo : Voir pour recuperer le valeur avant modif des input X et Y des tangents et ne modif que celui qui est necessaire en conservant les données des autres
+@app.callback(
+    Output('InputTangente', 'children'),
+    [Input('trc-graph-zoom', 'clickData')],
+    [State('Drop-Tangente', 'value'),
+     State('T1X1', 'value'),
+     State('T1Y1', 'value')])
+def display_click_data(clickData,DropValue, ValT1X1, ValT1Y1):
+
+
+    return html.Div([
+        html.Pre(json.dumps(clickData, indent=2), style=styles['pre']),
+        html.Div([value])
+            ])
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
