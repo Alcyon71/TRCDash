@@ -11,6 +11,7 @@ import dash_html_components as html
 import dash_table_experiments as dt
 import json
 import pandas as pd
+from scipy import signal
 import numpy as np
 import plotly
 import os
@@ -144,7 +145,19 @@ app.layout = html.Div([
                 ]),
     ], style={'columnCount': 2}),
     html.Div(id='CalculTangente', children=[
-        html.Button('Calculer Tangente', id='btnTangente')
+        html.Button('Calculer Tangente', id='btnTangente'),
+        html.Button('Essai', id='btnEssai', n_clicks=0),
+        html.Button('EssaiCalculdérive', id='btnEssai2', n_clicks=0)
+    ]),
+    html.Div([
+        dt.DataTable(
+            rows=[{}], # initialise the rows
+            row_selectable=True,
+            filterable=True,
+            sortable=True,
+            selected_row_indices=[],
+            id='datatable'
+        )
     ])
 ])
 
@@ -193,14 +206,23 @@ def update_output(contents, filename):
 
 @app.callback(
     Output('trc-graph-zoom', 'figure'),
-    [Input('trc-graph', 'selectedData')])
-def graph_selected_data(selectedData):
-    if selectedData is not None:
+    [Input('trc-graph', 'selectedData'),
+     Input('btnEssai', 'n_clicks')])
+def graph_selected_data(selectedData, n_clicks):
+    if selectedData is not None and n_clicks == 0:
         dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
         #logging.debug(selectedData['points'])
         return {'data': [
             {'x': dfselectdata.x, "y": dfselectdata.y, 'mode': 'markers', 'type': 'Scatter',
              'name': 'Selection'}],
+                'layout': {'title': 'Selection'
+                           }}
+    elif selectedData is not None and n_clicks > 0:
+        dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
+        dfselectdata['scipy'] = signal.savgol_filter(dfselectdata['y'], 5, 3)
+        return {'data': [
+            {'x': dfselectdata.x, 'y': dfselectdata.y, 'mode': 'markers', 'type': 'Scatter', 'name': 'Selection'},
+            {'x': dfselectdata.x, 'y': dfselectdata.scipy, 'mode': 'markers', 'type': 'Scatter', 'name': 'test'}],
                 'layout': {'title': 'Selection'
                            }}
     else:
@@ -239,16 +261,22 @@ for output_element in output_elements:
               State('T2Y2', 'value')])(dynamically_generated_function)
 
 
-# @app.callback(
-#     Output('trc-graph-zoom', 'figure'),
-#     [Input('button', 'n_clicks'),
-#      Input('trc-graph', 'selectedData')],
-#     [State('input-box', 'value')])
-# def update_output(n_clicks, selectedData, value):
-#
-#     return
-
-
+@app.callback(
+    Output('datatable', 'rows'),
+    [Input('trc-graph', 'selectedData'),
+    Input('btnEssai2', 'n_clicks')])
+def update_datatable(selectedData, n_clicks):
+    logging.debug('sa marche')
+    if n_clicks > 0:
+        dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
+        dfselectdata['diffy'] = dfselectdata['y'].diff(1)
+        dfselectdata['scipy'] = signal.savgol_filter(dfselectdata['y'], 5, 3)
+        dfselectdata['filtereddiff'] = dfselectdata['scipy'].diff(1)
+        Solution = dfselectdata['x'].loc[dfselectdata['filtereddiff'] == 0]
+        logging.debug(Solution)
+        return Solution
+    else:
+        return [{}]
 
 if __name__ == '__main__':
     app.run_server(debug=True)

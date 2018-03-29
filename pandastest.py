@@ -60,7 +60,8 @@ test = df['diffy'].values
 #print(df)
 #test = df['diffy'] == 0
 #print(test)
-#print(df['x'].loc[df['filtereddiff'] == 0])
+print(df['x'].loc[df['filtereddiff'] == 0])
+print(df['x'].loc[df['diffy'] == 0])
 #print(df['x'][signal.argrelextrema(df['scipy'].values, np.greater)[0]])
 #print(df['x'][signal.argrelextrema(df['scipy'].values, np.less)[0]])
 # plt.plot(df['x'],df['y'])
