@@ -1,6 +1,7 @@
 import base64
 import datetime
 import io
+import logging, sys
 
 import dash
 from dash.dependencies import Input, Output, State
@@ -13,6 +14,9 @@ import pandas as pd
 import numpy as np
 import plotly
 import os
+
+#Debug
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
 #Import des données
 # df = pd.read_excel('test.xls', sheet_name='Données brutes', index_col=None, header=None)
@@ -36,7 +40,7 @@ styles = {
 }
 
 #Affichage de la page web
-app.layout = html.Div(children=[
+app.layout = html.Div([
     html.H4(children='Essai TRC'),
     dcc.Upload(
             id='upload-data',
@@ -64,14 +68,14 @@ app.layout = html.Div(children=[
     dcc.Dropdown(
         id='Drop-Tangente',
         options=[
-            {'label': 'Tangente1 x1', 'value': 'T1X1'},
-            {'label': 'Tangente1 y1', 'value': 'T1Y1'},
-            {'label': 'Tangente1 x2', 'value': 'T1X2'},
-            {'label': 'Tangente1 y2', 'value': 'T1Y2'}
+            {'label': 'Tangente1 x1/y1', 'value': 'T1-X1-Y1'},
+            {'label': 'Tangente1 x2/y2', 'value': 'T1-X2-Y2'},
+            {'label': 'Tangente2 x1/y1', 'value': 'T2-X1-Y1'},
+            {'label': 'Tangente2 x2/y2', 'value': 'T2-X2-Y2'}
         ],
-        value='T1X1'
+        value='T1-X1-Y1'
     ),
-    html.Div(className='tangente', children=[
+    html.Div(id='InputTangente', children=[
             html.Div([
                 html.H4('Tangente1'),
                 html.Div([
@@ -117,7 +121,7 @@ app.layout = html.Div(children=[
                     ),
                     dcc.Input(
                         id='T2Y1',
-                        placeholder='y1',
+                        placeholder='x1',
                         type='text',
                         value='',
                         size='10'
@@ -132,15 +136,16 @@ app.layout = html.Div(children=[
                     ),
                     dcc.Input(
                         id='T2Y2',
-                        placeholder='y2',
+                        placeholder='x2',
                         type='text',
                         value='',
                         size='10'
                     )]),
                 ]),
     ], style={'columnCount': 2}),
-    html.Div(id='TestClick'),
-    html.Div(id='InputTangente')
+    html.Div(id='CalculTangente', children=[
+        html.Button('Calculer Tangente', id='btnTangente')
+    ])
 ])
 
 
@@ -173,6 +178,7 @@ def parse_contents(contents, filename):
               [Input('upload-data', 'contents'),
                Input('upload-data', 'filename')])
 def update_output(contents, filename):
+    logging.debug(filename)
     if contents is not None:
         df2 = parse_contents(contents, filename)
         if df2 is not None:
@@ -184,12 +190,14 @@ def update_output(contents, filename):
     else:
         return [{}]
 
+
 @app.callback(
     Output('trc-graph-zoom', 'figure'),
     [Input('trc-graph', 'selectedData')])
 def graph_selected_data(selectedData):
     if selectedData is not None:
         dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
+        #logging.debug(selectedData['points'])
         return {'data': [
             {'x': dfselectdata.x, "y": dfselectdata.y, 'mode': 'markers', 'type': 'Scatter',
              'name': 'Selection'}],
@@ -198,42 +206,47 @@ def graph_selected_data(selectedData):
     else:
         return [{}]
 
-#Todo : Sélection des points pour tracer tangente, voir layout 'shapes' documentation plotly
-@app.callback(
-    Output('TestClick', 'children'),
-    [Input('trc-graph-zoom', 'clickData')],
-    [State('Drop-Tangente', 'value')])
-def display_click_data(clickData,value):
-    #return json.dumps(clickData, indent=2)
-    return html.Div([
-        html.Pre(json.dumps(clickData, indent=2), style=styles['pre']),
-        html.Div([value])
-            ])
 
 
+output_elements = ['T1X1', 'T1Y1', 'T1X2', 'T1Y2', 'T2X1', 'T2Y1', 'T2X2', 'T2Y2']
 
-#Todo : Voir pour recuperer le valeur avant modif des input X et Y des tangents et ne modif que celui qui est necessaire en conservant les données des autres
-@app.callback(
-    Output('InputTangente', 'children'),
-    [Input('trc-graph-zoom', 'clickData')],
-    [State('Drop-Tangente', 'value'),
-     State('T1X1', 'value'),
-     State('T1Y1', 'value'),
-     State('T1X2', 'value'),
-     State('T1Y2', 'value'),
-     State('T2X1', 'value'),
-     State('T2Y1', 'value'),
-     State('T2X2', 'value'),
-     State('T2Y2', 'value')])
-def display_click_data(clickData,DropValue, ValT1X1, ValT1Y1, ValT1X2, ValT1Y2, ValT2X1, ValT2Y1, ValT2X2, ValT2Y2):
-    Val_Tangente = {'T1X1': ValT1X1, 'T1Y1': ValT1Y1, 'T1X2': ValT1X2, 'T1Y2': ValT1Y2, 'T2X1': ValT2X1,'T2Y1': ValT2Y1, 'T2X2': ValT2X2, 'T2Y2': ValT2Y2}
-    #logging.debug(Val_Tangente)
-    #logging.debug(clickData)
-    Val_Tangente[DropValue] = 'Test'
-    return html.Div([
-        html.Pre(json.dumps(clickData, indent=2), style=styles['pre']),
-        html.Div([value])
-    ])
+def create_callback(output):
+    def callback(clickData, DropValue, ValT1X1, ValT1Y1, ValT1X2, ValT1Y2, ValT2X1, ValT2Y1, ValT2X2, ValT2Y2):
+        if clickData is not None:
+            logging.debug(DropValue)
+            logging.debug(output)
+            logging.debug(DropValue.split('-')[0] + DropValue.split('-')[1])
+            if (DropValue.split('-')[0] + DropValue.split('-')[1]) == output:
+                logging.debug(clickData['points'][0][output[2].lower()])
+                return clickData['points'][0][output[2].lower()]
+            elif (DropValue.split('-')[0] + DropValue.split('-')[2]) == output:
+                return clickData['points'][0][output[2].lower()]
+
+    return callback
+
+for output_element in output_elements:
+    dynamically_generated_function = create_callback(output_element)
+    app.callback(Output(output_element, 'value'),
+             [Input('trc-graph-zoom', 'clickData')],
+             [State('Drop-Tangente', 'value'),
+              State('T1X1', 'value'),
+              State('T1Y1', 'value'),
+              State('T1X2', 'value'),
+              State('T1Y2', 'value'),
+              State('T2X1', 'value'),
+              State('T2Y1', 'value'),
+              State('T2X2', 'value'),
+              State('T2Y2', 'value')])(dynamically_generated_function)
+
+
+# @app.callback(
+#     Output('trc-graph-zoom', 'figure'),
+#     [Input('button', 'n_clicks'),
+#      Input('trc-graph', 'selectedData')],
+#     [State('input-box', 'value')])
+# def update_output(n_clicks, selectedData, value):
+#
+#     return
 
 
 
