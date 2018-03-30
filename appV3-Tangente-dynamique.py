@@ -20,8 +20,8 @@ import os
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
 #Import des données
-# df = pd.read_excel('test.xls', sheet_name='Données brutes', index_col=None, header=None)
-# df.columns = ['Temps', 'Température', 'Dilatation']
+df2 = pd.read_excel('test.xls', sheet_name='Données brutes', index_col=None, header=None)
+df2.columns = ['Temps', 'Température', 'Dilatation']
 
 #print(df)
 
@@ -145,13 +145,13 @@ app.layout = html.Div([
                 ]),
     ], style={'columnCount': 2}),
     html.Div(id='CalculTangente', children=[
-        html.Button('Calculer Tangente', id='btnTangente'),
+        html.Button('Calculer Tangente', id='btnTangente', n_clicks=0),
         html.Button('Essai', id='btnEssai', n_clicks=0),
         html.Button('EssaiCalculdérive', id='btnEssai2', n_clicks=0)
     ]),
     html.Div([
         dt.DataTable(
-            rows=[{}], # initialise the rows
+            rows=[{}],
             row_selectable=True,
             filterable=True,
             sortable=True,
@@ -162,6 +162,13 @@ app.layout = html.Div([
 ])
 
 
+#Calcul de l'équation d'un droite avec 2 point
+def equation_droite(a,b):
+    # y = m x + o
+    m = (b['y']-a['y'])/(b['x']-a['x'])
+    o = a['y'] - (m*a['x'])
+    equation = {'m': m, 'o': o}
+    return equation
 
 #Traitement des données du fichier et création du graph général
 def parse_contents(contents, filename):
@@ -207,24 +214,64 @@ def update_output(contents, filename):
 @app.callback(
     Output('trc-graph-zoom', 'figure'),
     [Input('trc-graph', 'selectedData'),
-     Input('btnEssai', 'n_clicks')])
-def graph_selected_data(selectedData, n_clicks):
-    if selectedData is not None and n_clicks == 0:
+     Input('btnEssai', 'n_clicks'),
+     Input('btnTangente', 'n_clicks')],
+    [State('T1X1', 'value'),
+     State('T1Y1', 'value'),
+     State('T1X2', 'value'),
+     State('T1Y2', 'value'),
+     State('T2X1', 'value'),
+     State('T2Y1', 'value'),
+     State('T2X2', 'value'),
+     State('T2Y2', 'value')])
+def graph_selected_data(selectedData, click_essai, click_tang, ValT1X1, ValT1Y1, ValT1X2, ValT1Y2, ValT2X1, ValT2Y1, ValT2X2, ValT2Y2):
+    if selectedData is not None:
         dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
-        #logging.debug(selectedData['points'])
-        return {'data': [
-            {'x': dfselectdata.x, "y": dfselectdata.y, 'mode': 'markers', 'type': 'Scatter',
-             'name': 'Selection'}],
-                'layout': {'title': 'Selection'
-                           }}
-    elif selectedData is not None and n_clicks > 0:
-        dfselectdata = pd.DataFrame.from_dict(selectedData['points'], orient='columns')
-        dfselectdata['scipy'] = signal.savgol_filter(dfselectdata['y'], 5, 3)
-        return {'data': [
-            {'x': dfselectdata.x, 'y': dfselectdata.y, 'mode': 'markers', 'type': 'Scatter', 'name': 'Selection'},
-            {'x': dfselectdata.x, 'y': dfselectdata.scipy, 'mode': 'markers', 'type': 'Scatter', 'name': 'test'}],
-                'layout': {'title': 'Selection'
-                           }}
+        if click_essai == 0 and click_tang == 0:
+            #logging.debug(selectedData['points'])
+            return {'data': [
+                {'x': dfselectdata.x, "y": dfselectdata.y, 'mode': 'markers', 'type': 'Scatter',
+                 'name': 'Selection'}],
+                    'layout': {'title': 'Selection'
+                               }}
+        elif click_essai > 0:
+            dfselectdata['scipy'] = signal.savgol_filter(dfselectdata['y'], 5, 3)
+            dfselectdata['diffy'] = dfselectdata['y'].diff(1)
+            dfselectdata['filtereddiff'] = dfselectdata['scipy'].diff(1)
+            return {'data': [
+                {'x': dfselectdata.x, 'y': dfselectdata.y, 'mode': 'markers', 'type': 'Scatter', 'name': 'Selection'},
+                {'x': dfselectdata.loc[dfselectdata['diffy'] == 0].x, 'y': dfselectdata.loc[dfselectdata['diffy'] == 0].y, 'mode': 'markers', 'type': 'Scatter', 'name': 'DiffY',
+                 'marker': {'color': 'rgb(255,65,54)', 'line': {'width': 3}, 'symbol': 'circle-open'}},
+                {'x': dfselectdata.loc[dfselectdata['filtereddiff'] == 0].x, 'y': dfselectdata.loc[dfselectdata['filtereddiff'] == 0].y,
+                 'mode': 'markers', 'type': 'Scatter', 'name': 'DiffFiltrer',
+                 'marker': {'color': 'rgb(255,65,60)', 'line': {'width': 3}, 'symbol': 'circle-open'}}
+                    ],
+                    'layout': {'title': 'Diffy=0'
+                               }}
+        elif click_tang > 0:
+            #On récupere les coordonnées des 2 tangents
+            tang1 = {'a': {'x': ValT1X1, 'y': ValT1Y1}, 'b': {'x': ValT1X2, 'y': ValT1Y2}}
+            tang2 = {'a': {'x': ValT2X1, 'y': ValT2Y1}, 'b': {'x': ValT2X2, 'y': ValT2Y2}}
+            logging.debug(type(ValT1X1))
+            logging.debug(ValT1X1)
+            logging.debug(type(ValT1Y1))
+            logging.debug(ValT1Y1)
+            logging.debug(type(ValT1X2))
+            logging.debug(ValT1X2)
+            logging.debug(type(ValT1Y2))
+            logging.debug(ValT1Y2)
+            tang1equation = equation_droite(tang1['a'],tang1['b'])
+            #tang2equation = equation_droite(tang2['a'], tang2['b'])
+            logging.debug(tang1equation)
+            dfselectdata['T1Y'] = (tang1equation['m']*dfselectdata.x) + tang1equation['o']
+            logging.debug(dfselectdata['T1Y'])
+            return {'data': [
+                {'x': dfselectdata.x, 'y': dfselectdata.y, 'mode': 'markers', 'type': 'Scatter', 'name': 'Selection'},
+                {'x': dfselectdata.x, 'y': dfselectdata.T1Y, 'mode': 'lines', 'type': 'Scatter', 'name': 'tangente 1',
+                 },
+                    ],
+                    'layout': {'title': 'Diffy=0'
+                               }}
     else:
         return [{}]
 
@@ -237,12 +284,19 @@ def create_callback(output):
         if clickData is not None:
             logging.debug(DropValue)
             logging.debug(output)
-            logging.debug(DropValue.split('-')[0] + DropValue.split('-')[1])
             if (DropValue.split('-')[0] + DropValue.split('-')[1]) == output:
                 logging.debug(clickData['points'][0][output[2].lower()])
                 return clickData['points'][0][output[2].lower()]
             elif (DropValue.split('-')[0] + DropValue.split('-')[2]) == output:
+                logging.debug(clickData['points'][0][output[2].lower()])
                 return clickData['points'][0][output[2].lower()]
+            else:
+                list = {'T1X1': ValT1X1, 'T1Y1': ValT1Y1, 'T1X2': ValT1X2, 'T1Y2': ValT1Y2, 'T2X1': ValT2X1, 'T2Y1': ValT2Y1, 'T2X2': ValT2X2, 'T2Y2': ValT2Y2}
+                logging.debug(output)
+                logging.debug(list[output])
+                return list[output]
+
+
 
     return callback
 
@@ -272,9 +326,8 @@ def update_datatable(selectedData, n_clicks):
         dfselectdata['diffy'] = dfselectdata['y'].diff(1)
         dfselectdata['scipy'] = signal.savgol_filter(dfselectdata['y'], 5, 3)
         dfselectdata['filtereddiff'] = dfselectdata['scipy'].diff(1)
-        Solution = dfselectdata['x'].loc[dfselectdata['filtereddiff'] == 0]
-        logging.debug(Solution)
-        return Solution
+        logging.debug(dfselectdata.loc[dfselectdata['filtereddiff'] == 0].to_dict())
+        return dfselectdata.loc[dfselectdata['diffy'] == 0].to_dict('records')
     else:
         return [{}]
 
