@@ -143,7 +143,29 @@ app.layout = html.Div([
                         size='10'
                     )]),
                 ]),
-    ], style={'columnCount': 2}),
+            html.Div([
+                html.H4('Régression 1'),
+                html.Div([
+                    dcc.Textarea(
+                        id='regr1',
+                        placeholder='Enter a value...',
+                        value='',
+                        #readOnly=True
+                    )
+                ]),
+            ]),
+            html.Div([
+                html.H4('Régression 2'),
+                html.Div([
+                    dcc.Textarea(
+                        id='regr2',
+                        placeholder='Enter a value...',
+                        value='',
+                        #readOnly=True
+                    )
+                ]),
+            ]),
+    ], style={'columnCount': 4}),
     html.Div(id='CalculTangente', children=[
        #html.Button('Calculer Tangente', id='btnTangente', n_clicks=0),
         #html.Button('Essai', id='btnEssai', n_clicks=0),
@@ -304,7 +326,9 @@ def update_output(contents, filename):
 #     else:
 #         return [{}]
 
-
+#Mise a jour du graph zoon :
+# Par selection sur le graph principale
+# Par choix dans le radiobutton du choix du calcul : rien - tangente - dérive
 @app.callback(
     Output('trc-graph-zoom', 'figure'),
     [Input('trc-graph', 'selectedData'),
@@ -378,8 +402,9 @@ def graph_selected_data(selectedData, choix, ValT1X1, ValT1Y1, ValT1X2, ValT1Y2,
                  'mode': 'markers', 'type': 'Scatter', 'name': 'T2',
                  'marker': {'color': 'rgb(243,255,60)', 'line': {'width': 3}, 'symbol': 'circle-open'}},
                 {'x': [R[0]], 'y': [R[1]],
-                 'mode': 'markers', 'type': 'Scatter', 'name': 'Intersection',
-                 'marker': {'color': 'rgb(43,205,30)', 'line': {'width': 5}, 'symbol': 'circle-open'}, 'text': R[0]}
+                 'mode': 'markers+text', 'type': 'Scatter', 'name': 'Intersection',
+                 'marker': {'color': 'rgb(43,205,30)', 'line': {'width': 5}, 'symbol': 'circle-open'},
+                 'text': round(R[0], 2), 'textposition': 'bottom'}
                     ],
                     'layout': {'title': 'Diffy=0'
                                }}
@@ -387,6 +412,35 @@ def graph_selected_data(selectedData, choix, ValT1X1, ValT1Y1, ValT1X2, ValT1Y2,
         return [{}]
 
 
+
+#Mise a jour valeur regression linéaire
+output_elements_regr = ['regr1', 'regr2']
+
+def create_callback_regr(output):
+    def callback_regr(selectedData, DropValue, regr1, regr2):
+        if selectedData is not None:
+            if (DropValue.split('-')[0] + DropValue.split('-')[1]) == output:
+                return selectedData['points'][0][output[2].lower()]
+            elif (DropValue.split('-')[0] + DropValue.split('-')[2]) == output:
+                return selectedData['points'][0][output[2].lower()]
+            else:
+                liste = {'regr1': regr1, 'regr2': regr2}
+                return [{}]
+
+    return callback_regr
+
+for output_element_regr in output_elements_regr:
+    dynamically_generated_function = create_callback_regr(output_element_regr)
+    app.callback(Output(output_element_regr, 'value'),
+             [Input('trc-graph-zoom', 'selectedData')],
+             [State('Drop-Tangente', 'value'),
+              State('regr1', 'value'),
+              State('regr2', 'value')])(dynamically_generated_function)
+
+
+
+
+#Mise a jour des valeurs des tangents par click sur graph zoom
 output_elements = ['T1X1', 'T1Y1', 'T1X2', 'T1Y2', 'T2X1', 'T2Y1', 'T2X2', 'T2Y2']
 
 def create_callback(output):
@@ -400,8 +454,6 @@ def create_callback(output):
                 liste = {'T1X1': ValT1X1, 'T1Y1': ValT1Y1, 'T1X2': ValT1X2, 'T1Y2': ValT1Y2, 'T2X1': ValT2X1,
                         'T2Y1': ValT2Y1, 'T2X2': ValT2X2, 'T2Y2': ValT2Y2}
                 return liste[output]
-
-
 
     return callback
 
